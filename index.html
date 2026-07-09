@@ -563,6 +563,23 @@
   line-height:1.6;
 }
 
+
+.photoLockBtn {
+  background:#1565c0 !important;
+  color:#fff !important;
+  box-shadow:none !important;
+  margin-top:10px !important;
+}
+.photoLockBtn.unlocked {
+  background:#78909c !important;
+}
+.photoLockNote {
+  margin:6px 0 10px;
+  font-size:12px;
+  color:#455a64;
+  line-height:1.6;
+}
+
   </style>
 </head>
 <body>
@@ -721,6 +738,21 @@
   </button>
 
 
+
+  <button id="photoLockBtn" type="button" class="photoLockBtn unlocked"
+    data-ja-lock="🔒 写真ロック"
+    data-ja-unlock="🔓 写真ロック解除"
+    data-en-lock="🔒 Lock Photo"
+    data-en-unlock="🔓 Unlock Photo"
+    data-zh-lock="🔒 锁定照片"
+    data-zh-unlock="🔓 解除照片锁定"
+    data-ko-lock="🔒 사진 잠금"
+    data-ko-unlock="🔓 사진 잠금 해제"
+    data-vi-lock="🔒 Khóa ảnh"
+    data-vi-unlock="🔓 Mở khóa ảnh">
+    🔒 写真ロック
+  </button>
+  <p id="photoLockNote" class="photoLockNote">※ 写真の位置が決まったらロックしてください。ロック中はロゴだけを動かせます。</p>
 
   <div class="stampPanel" id="stampPanel">
     <h3>③ チームロゴでデコる</h3>
@@ -1781,6 +1813,43 @@ Miyajima Fan Studio<br><br>
     let stamps = [];
     let selectedStampIndex = -1;
     let activeEditTarget = "photo"; // photo / stamp
+    let photoLocked = false;
+
+
+    const photoLockNoteTexts = {
+      ja: { unlocked: "※ 写真の位置が決まったらロックしてください。ロック中はロゴだけを動かせます。", locked: "✅ 写真をロック中です。ロゴを選んで、移動・拡大・回転できます。" },
+      en: { unlocked: "※ Lock the photo after positioning it. While locked, only logos can be moved.", locked: "✅ Photo is locked. Choose a logo and adjust it." },
+      zh: { unlocked: "※ 照片位置确定后请锁定。锁定中只能移动标志。", locked: "✅ 照片已锁定。请选择标志并调整。" },
+      ko: { unlocked: "※ 사진 위치를 정한 뒤 잠그세요. 잠금 중에는 로고만 움직일 수 있습니다.", locked: "✅ 사진이 잠겨 있습니다. 로고를 선택해 조정하세요." },
+      vi: { unlocked: "※ Sau khi chỉnh xong vị trí ảnh, hãy khóa ảnh. Khi khóa, chỉ có thể di chuyển logo.", locked: "✅ Ảnh đã được khóa. Hãy chọn logo và chỉnh." }
+    };
+
+    function updatePhotoLockButton() {
+      const btn = document.getElementById("photoLockBtn");
+      const note = document.getElementById("photoLockNote");
+      if (!btn) return;
+      const lang = currentLang || "ja";
+      const lockText = btn.dataset[`${lang}Lock`] || btn.dataset.jaLock || "🔒 写真ロック";
+      const unlockText = btn.dataset[`${lang}Unlock`] || btn.dataset.jaUnlock || "🔓 写真ロック解除";
+      btn.textContent = photoLocked ? unlockText : lockText;
+      btn.classList.toggle("unlocked", !photoLocked);
+      if (note) {
+        const textSet = photoLockNoteTexts[lang] || photoLockNoteTexts.ja;
+        note.textContent = photoLocked ? textSet.locked : textSet.unlocked;
+      }
+    }
+
+    document.getElementById("photoLockBtn")?.addEventListener("click", () => {
+      if (!uploadedImg) {
+        alert("先に写真を選んでください。");
+        return;
+      }
+      photoLocked = !photoLocked;
+      if (photoLocked) activeEditTarget = "stamp";
+      clearFinalPreviewState();
+      updatePhotoLockButton();
+      draw();
+    });
 
     function loadImage(src) {
       return new Promise((resolve, reject) => {
@@ -2043,6 +2112,8 @@ Miyajima Fan Studio<br><br>
           fitImageToCanvas(uploadedImg);
           activeEditTarget = "photo";
           selectedStampIndex = -1;
+          photoLocked = false;
+          updatePhotoLockButton();
           clearFinalPreviewState();
 
           draw();
@@ -2082,6 +2153,12 @@ Miyajima Fan Studio<br><br>
         activeEditTarget = "stamp";
       } else {
         selectedStampIndex = -1;
+        if (photoLocked) {
+          activeEditTarget = "stamp";
+          isDragging = false;
+          draw();
+          return;
+        }
         activeEditTarget = "photo";
         if (!uploadedImg) return;
       }
@@ -2123,7 +2200,7 @@ Miyajima Fan Studio<br><br>
           st.rotation += dx * 0.005;
         }
       } else {
-        if (!uploadedImg) return;
+        if (!uploadedImg || photoLocked) return;
         if (dragMode === "move") {
           imgX += dx * scaleX;
           imgY += dy * scaleY;
@@ -2149,7 +2226,7 @@ Miyajima Fan Studio<br><br>
         st.scale += e.deltaY * -0.001;
         st.scale = Math.max(0.05, Math.min(5, st.scale));
         draw();
-      } else if (uploadedImg) {
+      } else if (uploadedImg && !photoLocked) {
         scale += e.deltaY * -0.001;
         scale = Math.max(0.1, Math.min(5, scale));
         draw();
@@ -2163,7 +2240,7 @@ Miyajima Fan Studio<br><br>
       if (st) {
         if (e.key === 'ArrowLeft') st.rotation -= 0.05;
         if (e.key === 'ArrowRight') st.rotation += 0.05;
-      } else {
+      } else if (!photoLocked) {
         if (e.key === 'ArrowLeft') rotation -= 0.05;
         if (e.key === 'ArrowRight') rotation += 0.05;
       }
@@ -2305,6 +2382,13 @@ document.getElementById('saveBtn').addEventListener('click', () => {
           activeEditTarget = "stamp";
         } else {
           selectedStampIndex = -1;
+          if (photoLocked) {
+            activeEditTarget = "stamp";
+            isDragging = false;
+            draw();
+            e.preventDefault();
+            return;
+          }
           activeEditTarget = "photo";
           if (!uploadedImg) return;
         }
@@ -2339,7 +2423,7 @@ document.getElementById('saveBtn').addEventListener('click', () => {
           stamps[selectedStampIndex].x += dxCanvas;
           stamps[selectedStampIndex].y += dyCanvas;
         } else {
-          if (!uploadedImg) return;
+          if (!uploadedImg || photoLocked) return;
           imgX += dxCanvas;
           imgY += dyCanvas;
         }
@@ -2365,7 +2449,7 @@ document.getElementById('saveBtn').addEventListener('click', () => {
             st.scale *= scaleChange;
             st.scale = Math.max(0.05, Math.min(5, st.scale));
           } else {
-            if (!uploadedImg) return;
+            if (!uploadedImg || photoLocked) return;
             scale *= scaleChange;
             scale = Math.max(0.1, Math.min(5, scale));
           }
@@ -2376,7 +2460,7 @@ document.getElementById('saveBtn').addEventListener('click', () => {
           if (activeEditTarget === "stamp" && selectedStampIndex >= 0) {
             stamps[selectedStampIndex].rotation += angleChange;
           } else {
-            if (!uploadedImg) return;
+            if (!uploadedImg || photoLocked) return;
             rotation += angleChange;
           }
         }
@@ -4356,6 +4440,10 @@ document.getElementById('saveBtn').addEventListener('click', () => {
 
       if (typeof updateSwitchCameraButton === 'function') {
         updateSwitchCameraButton();
+      }
+
+      if (typeof updatePhotoLockButton === 'function') {
+        updatePhotoLockButton();
       }
     } // ← setLanguage終了
 
