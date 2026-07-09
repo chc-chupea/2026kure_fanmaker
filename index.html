@@ -539,6 +539,12 @@
   border:1px solid #ffcc80 !important;
   font-size:13px !important;
 }
+.stampBtn.selectedLogoBtn {
+  border:3px solid #e53935 !important;
+  background:#ffebee !important;
+  color:#b71c1c !important;
+  font-weight:900 !important;
+}
 .stampBtn img {
   display:block;
   width:48px;
@@ -1814,6 +1820,8 @@ Miyajima Fan Studio<br><br>
     let selectedStampIndex = -1;
     let activeEditTarget = "photo"; // photo / stamp
     let photoLocked = false;
+    let stampJustAddedUntil = 0;
+    const STAMP_HIT_PADDING = 90; // キャンバス座標。透明部分が多いロゴでもつかみやすくする
 
 
     const photoLockNoteTexts = {
@@ -1863,13 +1871,44 @@ Miyajima Fan Studio<br><br>
     function drawStampSelection(stamp) {
       const w = stamp.img.width * stamp.scale;
       const h = stamp.img.height * stamp.scale;
+      const isJustAdded = Date.now() < stampJustAddedUntil;
+      const pad = isJustAdded ? 34 : 22;
+      const handleSize = isJustAdded ? 42 : 34;
+
       ctx.save();
       ctx.translate(stamp.x, stamp.y);
       ctx.rotate(stamp.rotation);
+
+      // 選択直後だけ太めの外枠を出して「選ばれている感」を強くする
+      if (isJustAdded) {
+        ctx.strokeStyle = "rgba(255,255,255,.95)";
+        ctx.lineWidth = 20;
+        ctx.setLineDash([]);
+        ctx.strokeRect(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2);
+      }
+
       ctx.strokeStyle = "#ff0000";
-      ctx.lineWidth = 5;
-      ctx.setLineDash([16, 8]);
-      ctx.strokeRect(-w / 2, -h / 2, w, h);
+      ctx.lineWidth = isJustAdded ? 10 : 7;
+      ctx.setLineDash([18, 9]);
+      ctx.strokeRect(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2);
+      ctx.setLineDash([]);
+
+      // 四隅の赤いハンドル。最初の1個目でも「ここをつかめる」と分かるようにする
+      const corners = [
+        [-w / 2 - pad, -h / 2 - pad],
+        [ w / 2 + pad, -h / 2 - pad],
+        [ w / 2 + pad,  h / 2 + pad],
+        [-w / 2 - pad,  h / 2 + pad]
+      ];
+      ctx.fillStyle = "#ff0000";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 6;
+      corners.forEach(([x, y]) => {
+        ctx.beginPath();
+        ctx.rect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
+        ctx.fill();
+        ctx.stroke();
+      });
       ctx.restore();
     }
 
@@ -1884,7 +1923,8 @@ Miyajima Fan Studio<br><br>
         const ly = dx * sin + dy * cos;
         const w = st.img.width * st.scale;
         const h = st.img.height * st.scale;
-        if (Math.abs(lx) <= w / 2 && Math.abs(ly) <= h / 2) return i;
+        const pad = Math.max(STAMP_HIT_PADDING, Math.min(w, h) * 0.18);
+        if (Math.abs(lx) <= w / 2 + pad && Math.abs(ly) <= h / 2 + pad) return i;
       }
       return -1;
     }
@@ -1895,6 +1935,12 @@ Miyajima Fan Studio<br><br>
         x: (clientX - rect.left) * (canvas.width / rect.width),
         y: (clientY - rect.top) * (canvas.height / rect.height)
       };
+    }
+
+    function updateStampButtonSelection(file) {
+      document.querySelectorAll('.stampBtn').forEach(btn => {
+        btn.classList.toggle('selectedLogoBtn', btn.dataset.file === file);
+      });
     }
 
     async function initStampPalette() {
@@ -1910,6 +1956,7 @@ Miyajima Fan Studio<br><br>
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "stampBtn";
+        btn.dataset.file = item.file;
         btn.innerHTML = `<img src="${item.file}" alt="${item.name}"><span>${item.name}</span>`;
         const thumb = btn.querySelector("img");
         if (thumb) thumb.onerror = () => btn.remove();
@@ -1920,8 +1967,12 @@ Miyajima Fan Studio<br><br>
             stamps.push({ img, file: item.file, name: item.name, x: canvas.width / 2, y: canvas.height / 2, scale: baseScale, rotation: 0 });
             selectedStampIndex = stamps.length - 1;
             activeEditTarget = "stamp";
+            stampJustAddedUntil = Date.now() + 1600;
+            updateStampButtonSelection(item.file);
             clearFinalPreviewState();
             draw();
+            setTimeout(() => draw(), 1650);
+            document.getElementById('canvasWrapper')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           } catch (e) {
             alert("ロゴ画像を読み込めませんでした：" + item.file);
           }
@@ -1935,6 +1986,7 @@ Miyajima Fan Studio<br><br>
       stamps.splice(selectedStampIndex, 1);
       selectedStampIndex = -1;
       activeEditTarget = "photo";
+      updateStampButtonSelection(null);
       clearFinalPreviewState();
       draw();
     });
@@ -1943,6 +1995,7 @@ Miyajima Fan Studio<br><br>
       stamps = [];
       selectedStampIndex = -1;
       activeEditTarget = "photo";
+      updateStampButtonSelection(null);
       clearFinalPreviewState();
       draw();
     });
@@ -2112,6 +2165,7 @@ Miyajima Fan Studio<br><br>
           fitImageToCanvas(uploadedImg);
           activeEditTarget = "photo";
           selectedStampIndex = -1;
+          updateStampButtonSelection(null);
           photoLocked = false;
           updatePhotoLockButton();
           clearFinalPreviewState();
@@ -2151,8 +2205,10 @@ Miyajima Fan Studio<br><br>
       if (hitIndex >= 0) {
         selectedStampIndex = hitIndex;
         activeEditTarget = "stamp";
+        updateStampButtonSelection(stamps[hitIndex]?.file);
       } else {
         selectedStampIndex = -1;
+        updateStampButtonSelection(null);
         if (photoLocked) {
           activeEditTarget = "stamp";
           isDragging = false;
@@ -2380,8 +2436,10 @@ document.getElementById('saveBtn').addEventListener('click', () => {
         if (hitIndex >= 0) {
           selectedStampIndex = hitIndex;
           activeEditTarget = "stamp";
+          updateStampButtonSelection(stamps[hitIndex]?.file);
         } else {
           selectedStampIndex = -1;
+          updateStampButtonSelection(null);
           if (photoLocked) {
             activeEditTarget = "stamp";
             isDragging = false;
