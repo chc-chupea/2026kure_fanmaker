@@ -1822,6 +1822,27 @@ Miyajima Fan Studio<br><br>
     let photoLocked = false;
     let stampJustAddedUntil = 0;
     const STAMP_HIT_PADDING = 90; // キャンバス座標。透明部分が多いロゴでもつかみやすくする
+    const STAMP_POP_MS = 150; // ロゴ追加直後に「ポンッ」と戻る時間
+    const STAMP_POP_SCALE = 1.15; // 追加直後の一瞬だけ大きく見せる倍率
+    const STAMP_FLASH_MS = 520; // 赤い選択枠を一瞬光らせる時間
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+    }
+
+    function getStampPopFactor(stamp, now = Date.now()) {
+      if (!stamp?.popUntil || !stamp?.addedAt || now >= stamp.popUntil) return 1;
+      const progress = easeOutCubic((now - stamp.addedAt) / STAMP_POP_MS);
+      return 1 + (STAMP_POP_SCALE - 1) * (1 - progress);
+    }
+
+    function animateStampFeedback(until) {
+      const tick = () => {
+        draw();
+        if (Date.now() < until) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
 
 
     const photoLockNoteTexts = {
@@ -1871,7 +1892,9 @@ Miyajima Fan Studio<br><br>
     function drawStampSelection(stamp) {
       const w = stamp.img.width * stamp.scale;
       const h = stamp.img.height * stamp.scale;
-      const isJustAdded = Date.now() < stampJustAddedUntil;
+      const now = Date.now();
+      const isJustAdded = now < stampJustAddedUntil;
+      const isFlashing = stamp?.flashUntil && now < stamp.flashUntil;
       const pad = isJustAdded ? 34 : 22;
       const handleSize = isJustAdded ? 42 : 34;
 
@@ -1885,6 +1908,17 @@ Miyajima Fan Studio<br><br>
         ctx.lineWidth = 20;
         ctx.setLineDash([]);
         ctx.strokeRect(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2);
+      }
+
+      if (isFlashing) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 0, 0, .95)";
+        ctx.lineWidth = 18;
+        ctx.shadowColor = "rgba(255, 0, 0, .95)";
+        ctx.shadowBlur = 34;
+        ctx.setLineDash([]);
+        ctx.strokeRect(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2);
+        ctx.restore();
       }
 
       ctx.strokeStyle = "#ff0000";
@@ -1963,14 +1997,29 @@ Miyajima Fan Studio<br><br>
         btn.addEventListener("click", async () => {
           try {
             const img = await loadImage(item.file);
-            const baseScale = Math.min(420 / img.width, 420 / img.height, 1.2);
-            stamps.push({ img, file: item.file, name: item.name, x: canvas.width / 2, y: canvas.height / 2, scale: baseScale, rotation: 0 });
+            const baseScale = Math.min(550 / img.width, 550 / img.height, 1.5);
+            const now = Date.now();
+            const newStamp = {
+              img,
+              file: item.file,
+              name: item.name,
+              x: canvas.width / 2,
+              y: canvas.height / 2,
+              scale: baseScale,
+              rotation: 0,
+              addedAt: now,
+              popUntil: now + STAMP_POP_MS,
+              flashUntil: now + STAMP_FLASH_MS
+            };
+            stamps.push(newStamp);
             selectedStampIndex = stamps.length - 1;
             activeEditTarget = "stamp";
-            stampJustAddedUntil = Date.now() + 1600;
+            stampJustAddedUntil = now + 1600;
+            if (navigator.vibrate) navigator.vibrate(10);
             updateStampButtonSelection(item.file);
             clearFinalPreviewState();
             draw();
+            animateStampFeedback(now + Math.max(STAMP_POP_MS, STAMP_FLASH_MS));
             setTimeout(() => draw(), 1650);
             document.getElementById('canvasWrapper')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           } catch (e) {
@@ -2108,11 +2157,13 @@ Miyajima Fan Studio<br><br>
          ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
        }
 
+      const now = Date.now();
       stamps.forEach((stamp, index) => {
+        const popFactor = getStampPopFactor(stamp, now);
         ctx.save();
         ctx.translate(stamp.x, stamp.y);
         ctx.rotate(stamp.rotation);
-        ctx.scale(stamp.scale, stamp.scale);
+        ctx.scale(stamp.scale * popFactor, stamp.scale * popFactor);
         ctx.drawImage(stamp.img, -stamp.img.width / 2, -stamp.img.height / 2);
         ctx.restore();
         if (showSelection && index === selectedStampIndex) drawStampSelection(stamp);
