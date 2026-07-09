@@ -1797,9 +1797,9 @@ Miyajima Fan Studio<br><br>
       ctx.save();
       ctx.translate(stamp.x, stamp.y);
       ctx.rotate(stamp.rotation);
-      ctx.strokeStyle = "#ff9800";
-      ctx.lineWidth = 8;
-      ctx.setLineDash([24, 16]);
+      ctx.strokeStyle = "#ff0000";
+      ctx.lineWidth = 5;
+      ctx.setLineDash([16, 8]);
       ctx.strokeRect(-w / 2, -h / 2, w, h);
       ctx.restore();
     }
@@ -1970,7 +1970,7 @@ Miyajima Fan Studio<br><br>
     }
 
 
-    function draw() {
+    function draw(showSelection = true) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (uploadedImg) {
@@ -1993,7 +1993,7 @@ Miyajima Fan Studio<br><br>
         ctx.scale(stamp.scale, stamp.scale);
         ctx.drawImage(stamp.img, -stamp.img.width / 2, -stamp.img.height / 2);
         ctx.restore();
-        if (index === selectedStampIndex) drawStampSelection(stamp);
+        if (showSelection && index === selectedStampIndex) drawStampSelection(stamp);
       });
      }
      
@@ -2182,6 +2182,8 @@ document.getElementById('saveBtn').addEventListener('click', () => {
   }
 
   // canvas を Blob にしてプレビュー表示（長押しで保存する方式）
+  // 完成イメージにはロゴ選択用の点線を焼き込まない
+  draw(false);
   canvas.toBlob(blob => {
     const errorTexts = {
       ja: '画像作成に失敗しました。もう一度お試しください。',
@@ -2265,7 +2267,8 @@ document.getElementById('saveBtn').addEventListener('click', () => {
     // スクロールして目立たせる
     previewWrapper.scrollIntoView({ behavior: 'smooth' });
 
-  }, 'image/png'); // PNG で生成
+  }, 'image/png');
+  draw(true); // PNG で生成
 });
 // -------------------------------------------------------------------
 
@@ -3171,8 +3174,10 @@ document.getElementById('saveBtn').addEventListener('click', () => {
       const orderErrorEl = document.getElementById('orderError');
 
       try {
-        draw();
+        // カート用の完成画像にもロゴ選択用の点線を焼き込まない
+        draw(false);
         const imageDataUrl = canvas.toDataURL('image/png');
+        draw(true);
         const copies = getOrderCopies();
         const unitPrice = getGeneralPrice();
         const template = isReuseMode && reuseSourceOrder ? (reuseSourceOrder.template || templateSelector.value) : templateSelector.value;
