@@ -2369,6 +2369,9 @@ document.getElementById('saveBtn').addEventListener('click', () => {
   // 完成イメージにはロゴ選択用の点線を焼き込まない
   draw(false);
   canvas.toBlob(blob => {
+    // toBlob は非同期のため、選択枠なしPNGの作成が終わってから編集表示へ戻す。
+    // ここより前に draw(true) すると、端末によって赤い選択枠がPNGへ入ることがある。
+    draw(true);
     const errorTexts = {
       ja: '画像作成に失敗しました。もう一度お試しください。',
       en: 'Failed to create image. Please try again.',
@@ -2452,7 +2455,6 @@ document.getElementById('saveBtn').addEventListener('click', () => {
     previewWrapper.scrollIntoView({ behavior: 'smooth' });
 
   }, 'image/png');
-  draw(true); // PNG で生成
 });
 // -------------------------------------------------------------------
 
@@ -3669,18 +3671,7 @@ document.getElementById('saveBtn').addEventListener('click', () => {
           return;
         }
 
-        if (customerInfo.subscriptionStatus.length === 0) {
-          orderErrorEl.textContent = "購読状況を1つ以上選択してください。";
-          orderErrorEl.style.display = "block";
-          orderErrorEl.scrollIntoView({ behavior: "smooth", block: "center" });
-
-          orderBtn.disabled = false;
-          orderBtn.textContent =
-            orderBtn.dataset[currentLang] ||
-            orderBtn.dataset.ja ||
-            "注文する";
-          return;
-        }
+        // アンケートは任意のため、未選択でも注文へ進めます。
       }
 
       const template = isReuseMode && reuseSourceOrder ? (reuseSourceOrder.template || templateSelector.value) : templateSelector.value;
