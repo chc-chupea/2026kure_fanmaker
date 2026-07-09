@@ -3935,7 +3935,8 @@ document.getElementById('saveBtn').addEventListener('click', () => {
           );
 
         } else {
-          draw();
+          // 注文用PNGには、ロゴスタンプの赤い選択線を焼き込まない
+          draw(false);
 
           drawPrintLabel(printLabel);
 
@@ -3950,8 +3951,8 @@ document.getElementById('saveBtn').addEventListener('click', () => {
             'PNG作成'
           );
 
-          // 画面上の編集キャンバスには番号ラベルを残さない
-          draw();
+          // 画面上の編集キャンバスには番号ラベルを残さず、選択線は編集用として戻す
+          draw(true);
 
           await withTimeout(
             uploadBytes(storageRef, pngBlob, { contentType: 'image/png' }),
