@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>呉チームうちわ 問い合わせ画面</title>
+  <style>html,body{margin:0;width:100%;height:100%;font-family:sans-serif;} iframe{border:0;width:100%;height:100vh;}</style>
+</head>
+<body>
+  <iframe id="inquiryFrame" title="問い合わせ画面"></iframe>
+  <script>
+    const params = new URLSearchParams(location.search);
+    params.set("shop", "kure");
+    const base = "https://chc-chupea.github.io/miyajima-fan-studio/ready_inquiry.html";
+    document.getElementById("inquiryFrame").src = base + "?" + params.toString();
+  </script>
+</body>
+</html>
